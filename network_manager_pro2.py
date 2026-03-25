@@ -611,14 +611,17 @@ class NetworkManager:
 
     def restore_firefox_proxy(self):
         restored = 0
+        reset_prefs = (
+            'user_pref("network.proxy.type", 0);\n'
+        )
         for profile_dir in self._firefox_profile_dirs():
             user_js = os.path.join(profile_dir, "user.js")
-            if os.path.exists(user_js):
-                try:
-                    os.remove(user_js)
-                    restored += 1
-                except:
-                    pass
+            try:
+                with open(user_js, "w") as f:
+                    f.write(reset_prefs)
+                restored += 1
+            except:
+                pass
         return restored
 
     # ── Kısayol yönetimi ─────────────────────────────────────────────────────
@@ -783,10 +786,9 @@ class NetworkManager:
             self.proxy.stop()
             self.log("success", "Proxy durduruldu")
 
-        if self.patch_shortcuts.get():
-            n = self.restore_browser_shortcuts()
-            if n:
-                self.log("success", f"{n} tarayıcı kısayolu eski haline getirildi")
+        n = self.restore_browser_shortcuts()
+        if n:
+            self.log("success", f"{n} tarayıcı kısayolu eski haline getirildi")
 
         n = self.restore_firefox_proxy()
         if n:
