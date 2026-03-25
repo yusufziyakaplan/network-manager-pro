@@ -1,0 +1,21 @@
+# Build çıktıları
+dist/
+dist2/
+build/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Kullanıcı config
+.nmgr_v2.json
+
+# IDE
+.vscode/
+.idea/
+
+# Windows
+desktop.ini
+Thumbs.db
