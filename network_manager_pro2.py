@@ -236,11 +236,12 @@ class NetworkManager:
         root.geometry(f"{W}x{H}+{x}+{y}")
 
         self.config_file = os.path.join(os.path.expanduser("~"), ".nmgr_v2.json")
-        self.proxy        = None
-        self.proxy_thread = None
-        self.tray_icon    = None
-        self.is_running   = False
-        self._eth_name    = None
+        self.proxy          = None
+        self.proxy_thread   = None
+        self.tray_icon      = None
+        self.is_running     = False
+        self._eth_name      = None
+        self._active_browser = None
 
         self._build_ui()
         self.load_wifi()
@@ -611,40 +612,45 @@ class NetworkManager:
 
     def restore_firefox_proxy(self):
         restored = 0
-        reset_prefs = (
-            'user_pref("network.proxy.type", 0);\n'
-        )
         for profile_dir in self._firefox_profile_dirs():
             user_js = os.path.join(profile_dir, "user.js")
+            if not os.path.exists(user_js):
+                continue
             try:
                 with open(user_js, "w") as f:
-                    f.write(reset_prefs)
+                    f.write('user_pref("network.proxy.type", 0);\n')
                 restored += 1
             except:
                 pass
         return restored
 
     # ── Kısayol yönetimi ─────────────────────────────────────────────────────
+    def _find_shortcuts(self, browser):
+        """APPDATA, USERPROFILE ve ProgramData altında tarayici kisayollarini recursive bul."""
+        keywords = {
+            "chrome":  ["google chrome"],
+            "firefox": ["firefox"],
+            "all":     ["google chrome", "firefox"],
+        }
+        search_roots = [
+            os.path.join(os.environ["APPDATA"], "Microsoft"),
+            os.path.join(os.environ["USERPROFILE"], "Desktop"),
+            os.path.join(os.environ["PUBLIC"], "Desktop"),
+            r"C:\ProgramData\Microsoft\Windows\Start Menu",
+        ]
+        targets = keywords.get(browser, [])
+        found = []
+        for root in search_roots:
+            if not os.path.isdir(root):
+                continue
+            for dirpath, _, files in os.walk(root):
+                for f in files:
+                    if f.lower().endswith(".lnk") and any(k in f.lower() for k in targets):
+                        found.append(os.path.join(dirpath, f))
+        return found
+
     def _shortcut_paths(self, browser):
-        chrome = [
-            os.path.join(os.environ["APPDATA"],
-                r"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Google Chrome.lnk"),
-            os.path.join(os.environ["USERPROFILE"], r"Desktop\Google Chrome.lnk"),
-            os.path.join(os.environ["APPDATA"],
-                r"Microsoft\Windows\Start Menu\Programs\Google Chrome.lnk"),
-            os.path.join(os.environ["PUBLIC"], r"Desktop\Google Chrome.lnk"),
-        ]
-        firefox = [
-            os.path.join(os.environ["APPDATA"],
-                r"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Firefox.lnk"),
-            os.path.join(os.environ["USERPROFILE"], r"Desktop\Firefox.lnk"),
-            os.path.join(os.environ["APPDATA"],
-                r"Microsoft\Windows\Start Menu\Programs\Firefox.lnk"),
-            os.path.join(os.environ["PUBLIC"], r"Desktop\Firefox.lnk"),
-        ]
-        if browser == "chrome":  return chrome
-        if browser == "firefox": return firefox
-        return chrome + firefox
+        return self._find_shortcuts(browser)
 
     def patch_browser_shortcuts(self, wifi_ip, browser):
         shell = win32com.client.Dispatch("WScript.Shell")
@@ -756,6 +762,7 @@ class NetworkManager:
                 self.log("dim", "Kısayol bulunamadı veya zaten ayarlı")
 
         # Firefox profil proxy ayarı
+        self._active_browser = browser
         if browser in ("firefox", "all"):
             n = self.patch_firefox_proxy(wifi_ip)
             if n:
@@ -790,18 +797,18 @@ class NetworkManager:
         if n:
             self.log("success", f"{n} tarayıcı kısayolu eski haline getirildi")
 
-        n = self.restore_firefox_proxy()
-        if n:
-            self.log("success", f"Firefox proxy temizlendi  ({n} profil)")
+        if self._active_browser in ("firefox", "all"):
+            n = self.restore_firefox_proxy()
+            if n:
+                self.log("success", f"Firefox proxy temizlendi  ({n} profil)")
+        self._active_browser = None
 
         if self._eth_name:
             subprocess.run(
                 ["netsh", "interface", "ip", "set", "interface", self._eth_name, "metric=automatic"],
                 capture_output=True
             )
-            subprocess.run(["ipconfig", "/release", self._eth_name], capture_output=True)
-            subprocess.run(["ipconfig", "/renew",   self._eth_name], capture_output=True)
-            self.log("success", f"Ethernet metric sıfırlandı, IP yenilendi  →  {self._eth_name}")
+            self.log("success", f"Ethernet metric sıfırlandı  →  {self._eth_name}")
             self._eth_name = None
 
         self.log("dim", "─" * 48)
