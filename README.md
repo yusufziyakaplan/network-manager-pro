@@ -17,7 +17,7 @@ Bunu bir **yerel proxy** (port 8888) kurarak sağlar. Tarayıcı trafiği proxy 
 ## 🖥️ Ekran Görüntüsü
 
 > Program açıldığında UAC ile yönetici izni ister, ardından arayüz gelir.
-<img width="733" height="822" alt="1" src="https://github.com/user-attachments/assets/a6e96c16-b552-4bf0-8482-3a2291a2b89c" />
+<img alt="Network Manager Pro v2.1.0" src="https://github.com/yusufziyakaplan/network-manager-pro/releases/download/v2.1.0/Ekran.goruntusu.2026-05-06.110234.png" />
 
 ---
 
