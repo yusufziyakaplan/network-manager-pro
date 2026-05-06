@@ -229,7 +229,7 @@ class NetworkManager:
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
 
-        W, H = 720, 780
+        W, H = 720, 1020
         root.update_idletasks()
         x = (root.winfo_screenwidth()  - W) // 2
         y = (root.winfo_screenheight() - H) // 2
@@ -386,6 +386,55 @@ class NetworkManager:
                                       C["danger"], "#B71C1C",
                                       state="disabled")
         self._stop_btn.pack(side=tk.LEFT)
+
+        # ── SÜRÜCÜ YÖNETİMİ ─────────────────────────────────────────────────
+        SectionLabel(body, "SÜRÜCÜ YÖNETİMİ  (Mavi Ekran Koruması)").pack(anchor=tk.W, pady=(8,4))
+        drv_card = Card(body)
+        drv_card.pack(fill=tk.X, pady=(0,12))
+
+        drv_inner = tk.Frame(drv_card, bg=C["card"])
+        drv_inner.pack(fill=tk.X, padx=16, pady=14)
+
+        # Açıklama
+        tk.Label(drv_inner,
+                 text="ipeaklwf.sys sürücüsü ağ çökmelerine ve mavi ekrana (BSOD) yol açabilir.\n"
+                      "Aşağıdaki buton ile sürücüyü devre dışı bırakabilir veya yeniden etkinleştirebilirsiniz.",
+                 font=("Segoe UI", 9), bg=C["card"], fg=C["text_sub"],
+                 justify=tk.LEFT, wraplength=640).pack(anchor=tk.W, pady=(0, 10))
+
+        drv_btn_row = tk.Frame(drv_inner, bg=C["card"])
+        drv_btn_row.pack(anchor=tk.W)
+
+        self._drv_btn = ModernButton(drv_btn_row, "🛡   ipeaklwf.sys Devre Dışı Bırak",
+                                     self.toggle_ipeaklwf_driver,
+                                     "#7B1FA2", "#6A1B9A")
+        self._drv_btn.pack(side=tk.LEFT, padx=(0, 12))
+
+        self._drv_status_lbl = tk.Label(drv_btn_row, text="",
+                                        font=("Segoe UI", 9),
+                                        bg=C["card"], fg=C["text_sub"])
+        self._drv_status_lbl.pack(side=tk.LEFT)
+
+        # Sürücü durumunu başlangıçta göster
+        self.root.after(200, self._refresh_driver_status)
+
+        # ── AĞ SIFIRLAMA ─────────────────────────────────────────────────────
+        SectionLabel(body, "AĞ SIFIRLAMA  (Kafası Karışık PC İçin)").pack(anchor=tk.W, pady=(8,4))
+        rst_card = Card(body)
+        rst_card.pack(fill=tk.X, pady=(0,12))
+
+        rst_inner = tk.Frame(rst_card, bg=C["card"])
+        rst_inner.pack(fill=tk.X, padx=16, pady=14)
+
+        tk.Label(rst_inner,
+                 text="Tüm ağ ayarlarını Windows varsayılanına sıfırlar:\n"
+                      "IP/DNS/Winsock/Firewall sıfırlanır, proxy temizlenir, adaptörler yeniden başlatılır.",
+                 font=("Segoe UI", 9), bg=C["card"], fg=C["text_sub"],
+                 justify=tk.LEFT, wraplength=640).pack(anchor=tk.W, pady=(0, 10))
+
+        ModernButton(rst_inner, "🔄   Ağ Ayarlarını Sıfırla",
+                     self.reset_network,
+                     "#E65100", "#BF360C").pack(anchor=tk.W)
 
         # ── LOG ALANI ────────────────────────────────────────────────────────
         SectionLabel(body, "DURUM").pack(anchor=tk.W, pady=(0,4))
@@ -871,6 +920,85 @@ class NetworkManager:
         except:
             pass
 
+    # ── Ağ sıfırlama ─────────────────────────────────────────────────────────
+    def reset_network(self):
+        """Tüm ağ ayarlarını Windows varsayılanına sıfırla."""
+        if not messagebox.askyesno("Ağ Sıfırlama",
+                "Bu işlem şunları yapacak:\n\n"
+                "• Winsock kataloğunu sıfırla\n"
+                "• IP/TCP yığınını sıfırla\n"
+                "• DNS önbelleğini temizle\n"
+                "• Tüm ağ adaptörlerini yeniden başlat\n"
+                "• Proxy ayarlarını temizle\n"
+                "• Windows Firewall'u varsayılana döndür\n\n"
+                "Devam etmek istiyor musun?"):
+            return
+
+        self.log("dim", "─" * 48)
+        self.log("info", "Ağ sıfırlama başlatılıyor...")
+
+        cmds = [
+            (["netsh", "winsock", "reset"],                          "Winsock sıfırlandı"),
+            (["netsh", "int", "ip", "reset"],                        "IP yığını sıfırlandı"),
+            (["netsh", "int", "ipv6", "reset"],                      "IPv6 yığını sıfırlandı"),
+            (["ipconfig", "/release"],                               "IP adresleri serbest bırakıldı"),
+            (["ipconfig", "/flushdns"],                              "DNS önbelleği temizlendi"),
+            (["netsh", "interface", "ip", "delete", "arpcache"],     "ARP önbelleği temizlendi"),
+            (["netsh", "winhttp", "reset", "proxy"],                 "WinHTTP proxy temizlendi"),
+            (["reg", "delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+              "/v", "ProxyEnable", "/f"],                            "IE/System proxy devre dışı"),
+            (["netsh", "advfirewall", "reset"],                      "Firewall varsayılana döndürüldü"),
+        ]
+
+        errors = 0
+        for cmd, label in cmds:
+            try:
+                result = subprocess.run(cmd, capture_output=True, timeout=15)
+                if result.returncode == 0:
+                    self.log("success", label)
+                else:
+                    self.log("warn", f"{label}  (uyarı: kod {result.returncode})")
+            except subprocess.TimeoutExpired:
+                self.log("warn", f"{label}  (zaman aşımı)")
+                errors += 1
+            except Exception as e:
+                self.log("warn", f"{label}  (hata: {e})")
+                errors += 1
+
+        # Adaptörleri yeniden başlat
+        self.log("info", "Ağ adaptörleri yeniden başlatılıyor...")
+        try:
+            addrs = psutil.net_if_stats()
+            for name in addrs:
+                if name.lower() == "loopback" or "loopback" in name.lower():
+                    continue
+                subprocess.run(["netsh", "interface", "set", "interface", name, "disable"],
+                               capture_output=True, timeout=8)
+                subprocess.run(["netsh", "interface", "set", "interface", name, "enable"],
+                               capture_output=True, timeout=8)
+            self.log("success", "Ağ adaptörleri yeniden başlatıldı")
+        except Exception as e:
+            self.log("warn", f"Adaptör yeniden başlatma: {e}")
+
+        # IP yenile
+        try:
+            subprocess.run(["ipconfig", "/renew"], capture_output=True, timeout=20)
+            self.log("success", "IP adresleri yenilendi")
+        except:
+            self.log("warn", "IP yenileme zaman aşımına uğradı (normal olabilir)")
+
+        self.log("dim", "─" * 48)
+        if errors == 0:
+            self.log("success", "Ağ sıfırlama tamamlandı!")
+            messagebox.showinfo("Tamamlandı",
+                "Ağ ayarları başarıyla sıfırlandı.\n\n"
+                "Tam etkili olması için bilgisayarı yeniden başlatmanı öneririm.")
+        else:
+            self.log("warn", f"Sıfırlama tamamlandı ({errors} uyarı)")
+            messagebox.showwarning("Tamamlandı (Uyarılarla)",
+                f"Ağ sıfırlama tamamlandı ancak {errors} adımda sorun oluştu.\n\n"
+                "Bilgisayarı yeniden başlatmanı öneririm.")
+
     # ── Otomatik başlatma ────────────────────────────────────────────────────
     def toggle_autostart(self):
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -895,6 +1023,123 @@ class NetworkManager:
             self.save_config()
         except Exception as e:
             messagebox.showerror("Hata", f"Otomatik başlatma ayarlanamadı:\n{e}")
+
+    # ── Sürücü yönetimi (ipeaklwf.sys) ───────────────────────────────────────
+    def _get_driver_status(self):
+        """ipeaklwf.sys sürücüsünün durumunu kontrol et."""
+        try:
+            result = subprocess.run(
+                ["sc", "query", "ipeaklwf"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            output = result.stdout.lower()
+            
+            if "does not exist" in output or "belirtilen hizmet" in output:
+                return "not_found"
+            elif "running" in output or "çalışıyor" in output:
+                return "running"
+            elif "stopped" in output or "durduruldu" in output:
+                return "stopped"
+            else:
+                return "unknown"
+        except:
+            return "error"
+
+    def _refresh_driver_status(self):
+        """Sürücü durumunu kontrol edip UI'ı güncelle."""
+        status = self._get_driver_status()
+        
+        if status == "not_found":
+            self._drv_status_lbl.config(text="Sürücü bulunamadı", fg=C["text_muted"])
+            self._drv_btn.btn.config(text="🛡   ipeaklwf.sys Devre Dışı Bırak")
+        elif status == "running":
+            self._drv_status_lbl.config(text="● Aktif", fg=C["danger"])
+            self._drv_btn.btn.config(text="🛡   ipeaklwf.sys Devre Dışı Bırak")
+        elif status == "stopped":
+            self._drv_status_lbl.config(text="● Devre Dışı", fg=C["success"])
+            self._drv_btn.btn.config(text="🛡   ipeaklwf.sys Etkinleştir")
+        else:
+            self._drv_status_lbl.config(text="Durum bilinmiyor", fg=C["text_muted"])
+
+    def toggle_ipeaklwf_driver(self):
+        """ipeaklwf.sys sürücüsünü devre dışı bırak veya etkinleştir."""
+        status = self._get_driver_status()
+        
+        if status == "not_found":
+            messagebox.showinfo("Bilgi", 
+                "ipeaklwf.sys sürücüsü sisteminizde bulunamadı.\n\n"
+                "Bu sürücü genellikle Intel Killer ağ kartlarında bulunur.")
+            return
+        
+        if status == "error":
+            messagebox.showerror("Hata", 
+                "Sürücü durumu kontrol edilemedi.\n"
+                "Program yönetici olarak çalıştırılıyor mu?")
+            return
+
+        try:
+            if status == "running":
+                # Sürücüyü durdur ve devre dışı bırak
+                self.log("info", "ipeaklwf.sys sürücüsü devre dışı bırakılıyor...")
+                
+                # Önce servisi durdur
+                subprocess.run(
+                    ["sc", "stop", "ipeaklwf"],
+                    capture_output=True,
+                    timeout=10
+                )
+                
+                # Sonra başlangıç tipini disabled yap
+                subprocess.run(
+                    ["sc", "config", "ipeaklwf", "start=", "disabled"],
+                    capture_output=True,
+                    timeout=10
+                )
+                
+                self.log("success", "ipeaklwf.sys devre dışı bırakıldı")
+                messagebox.showinfo("Başarılı", 
+                    "ipeaklwf.sys sürücüsü devre dışı bırakıldı.\n\n"
+                    "Değişikliklerin tam etkili olması için bilgisayarı yeniden başlatmanız önerilir.")
+                
+            elif status == "stopped":
+                # Sürücüyü etkinleştir ve başlat
+                self.log("info", "ipeaklwf.sys sürücüsü etkinleştiriliyor...")
+                
+                # Başlangıç tipini auto yap
+                subprocess.run(
+                    ["sc", "config", "ipeaklwf", "start=", "auto"],
+                    capture_output=True,
+                    timeout=10
+                )
+                
+                # Servisi başlat
+                result = subprocess.run(
+                    ["sc", "start", "ipeaklwf"],
+                    capture_output=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0:
+                    self.log("success", "ipeaklwf.sys etkinleştirildi")
+                    messagebox.showinfo("Başarılı", 
+                        "ipeaklwf.sys sürücüsü etkinleştirildi ve başlatıldı.")
+                else:
+                    self.log("warn", "ipeaklwf.sys etkinleştirildi ama başlatılamadı")
+                    messagebox.showwarning("Uyarı", 
+                        "ipeaklwf.sys sürücüsü etkinleştirildi.\n\n"
+                        "Başlatılamadı, bilgisayarı yeniden başlatın.")
+            
+            # Durumu güncelle
+            self.root.after(500, self._refresh_driver_status)
+            
+        except subprocess.TimeoutExpired:
+            self.log("warn", "Sürücü işlemi zaman aşımına uğradı")
+            messagebox.showerror("Hata", "İşlem zaman aşımına uğradı.")
+        except Exception as e:
+            self.log("warn", f"Sürücü işlemi başarısız: {e}")
+            messagebox.showerror("Hata", f"Sürücü işlemi başarısız:\n{e}")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -31,6 +31,25 @@ Bunu bir **yerel proxy** (port 8888) kurarak sağlar. Tarayıcı trafiği proxy 
 - ✅ Windows başlangıcında otomatik başlatma
 - ✅ Sistem tepsisinde (system tray) çalışma
 - ✅ Ayarlar JSON olarak kaydedilir
+- ✅ **[YENİ]** ipeaklwf.sys sürücüsü devre dışı bırakma (BSOD / ağ çökmesi koruması)
+- ✅ **[YENİ]** Tek tıkla tam ağ sıfırlama (Winsock, IP, DNS, Proxy, Firewall, Adaptörler)
+
+---
+
+## 🛡️ Yeni: Sürücü & Ağ Araçları
+
+### ipeaklwf.sys Devre Dışı Bırakma
+Intel Killer ağ kartlarında bulunan `ipeaklwf.sys` sürücüsü ağ çökmelerine ve mavi ekrana (BSOD) yol açabilir. Program içinden tek tıkla devre dışı bırakılabilir veya tekrar etkinleştirilebilir.
+
+### Ağ Sıfırlama
+PC'nin ağ ayarları karıştığında tek butonla her şeyi sıfırlar:
+- Winsock kataloğu sıfırlanır
+- IP / IPv6 yığını sıfırlanır
+- DNS önbelleği temizlenir
+- ARP önbelleği temizlenir
+- WinHTTP ve sistem proxy'si temizlenir
+- Windows Firewall varsayılana döndürülür
+- Tüm ağ adaptörleri yeniden başlatılır
 
 ---
 
@@ -76,6 +95,8 @@ build_v2.bat
 4. Hangi tarayıcıları WiFi'den çalıştırmak istediğini seç
 5. **BAŞLAT** butonuna tıkla
 6. Durdurmak için **DURDUR** — Ethernet otomatik eski haline gelir
+7. **[YENİ]** Ağ sorunu yaşıyorsan → **Ağ Ayarlarını Sıfırla** butonunu kullan
+8. **[YENİ]** BSOD / ağ çökmesi yaşıyorsan → **ipeaklwf.sys Devre Dışı Bırak** butonunu kullan
 
 ---
 
